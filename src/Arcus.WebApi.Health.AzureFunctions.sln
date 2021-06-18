@@ -1,11 +1,13 @@
 ﻿
-# Copyright © Apache License 2.0 2021 @keithsmith21 All rights reserved
-# State changes: project rename and additions
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30204.135
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Arcus.WebApi.Health.AzureFunctions", "Arcus.WebApi.Health.AzureFunctions\Arcus.WebApi.Health.AzureFunctions.csproj", "{3031CB4F-AD17-4E19-825D-BBD2CB941C5D}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{95FCAF3F-6357-44D7-8E17-DC8165FAAD91}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Arcus.WebApi.Health.AzureFunctions.Tests.Unit", "Arcus.WebApi.Health.AzureFunctions.Tests.Unit\Arcus.WebApi.Health.AzureFunctions.Tests.Unit.csproj", "{2A48080C-B1BD-45BE-9EA3-C53237958764}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,17 +19,16 @@ Global
 		{3031CB4F-AD17-4E19-825D-BBD2CB941C5D}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3031CB4F-AD17-4E19-825D-BBD2CB941C5D}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3031CB4F-AD17-4E19-825D-BBD2CB941C5D}.Release|Any CPU.Build.0 = Release|Any CPU
-		{43C1BA38-9E0E-4963-B334-DFBB512E4B0C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{43C1BA38-9E0E-4963-B334-DFBB512E4B0C}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{43C1BA38-9E0E-4963-B334-DFBB512E4B0C}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{43C1BA38-9E0E-4963-B334-DFBB512E4B0C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2A48080C-B1BD-45BE-9EA3-C53237958764}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2A48080C-B1BD-45BE-9EA3-C53237958764}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A48080C-B1BD-45BE-9EA3-C53237958764}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2A48080C-B1BD-45BE-9EA3-C53237958764}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{3031CB4F-AD17-4E19-825D-BBD2CB941C5D} = {A7422A39-DBB4-4E28-8785-CF52E51E00A5}
-		{43C1BA38-9E0E-4963-B334-DFBB512E4B0C} = {91BEAED9-087E-40A5-9B1D-F3CFCF210DD3}
+		{2A48080C-B1BD-45BE-9EA3-C53237958764} = {95FCAF3F-6357-44D7-8E17-DC8165FAAD91}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {9042270F-CD78-4717-BEF0-BEA3F1C5939D}

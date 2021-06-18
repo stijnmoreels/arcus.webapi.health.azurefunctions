@@ -1,54 +1,162 @@
 ﻿//Copyright(c) .NET Foundation and Contributors
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using GuardNet;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
 
-namespace FunctionHealthCheck
+namespace Arcus.WebApi.Health.AzureFunctions
 {
-    internal class DefaultHealthCheckService : HealthCheckService
+    /// <summary>
+    /// Represents an default <see cref="HealthCheckService"/> implementation that only checks the registered <see cref="IHealthCheck"/>'s for their statuses.
+    /// </summary>
+    public class DefaultHealthCheckService : HealthCheckService
     {
-        private readonly IServiceScopeFactory _scopeFactory;
-        private readonly IOptions<HealthCheckServiceOptions> _options;
-        private readonly ILogger<DefaultHealthCheckService> _logger;
-
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DefaultHealthCheckService"/> class.
+        /// </summary>
+        /// <param name="scopeFactory">The factory to resolve -and or create- <see cref="IHealthCheck"/> instances for each <see cref="HealthCheckRegistration"/>.</param>
+        /// <param name="options">The internally-added options to specify the <see cref="HealthCheckRegistration"/>s.</param>
+        /// <param name="logger">The logger instance to write diagnostic trace messages during the health checks process.</param>
+        /// <exception cref="ArgumentNullException">
+        ///     Thrown when the <paramref name="scopeFactory"/>, the <paramref name="options"/> is <c>null</c>
+        ///     or the <paramref name="options"/> doesn't contain a value for <see cref="HealthCheckServiceOptions.Registrations"/>.
+        /// </exception>
+        /// <exception cref="ArgumentException">
+        ///     Thrown when the <paramref name="options"/> contains <c>null</c> elements for the <see cref="HealthCheckServiceOptions.Registrations"/>
+        ///     or <c>null</c> values for the <see cref="HealthCheckRegistration.Factory"/> property
+        ///     or duplicate <see cref="HealthCheckRegistration.Name"/>s for the <see cref="HealthCheckServiceOptions.Registrations"/>
+        /// </exception>
         public DefaultHealthCheckService(
             IServiceScopeFactory scopeFactory,
             IOptions<HealthCheckServiceOptions> options,
             ILogger<DefaultHealthCheckService> logger)
         {
-            _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
-            _options = options ?? throw new ArgumentNullException(nameof(options));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            Guard.NotNull(scopeFactory, nameof(scopeFactory), "Requires an scope factory instance to resolve -and or create- health check instances for each health check registration");
+            Guard.NotNull(options, nameof(options), "Requires a set of options to define all the health check registrations to be checked");
+            Guard.NotNull(options.Value, nameof(options), "Requires a value for the set of options to define all the health check registrations to be checked");
+            Guard.NotNull(options.Value.Registrations, nameof(options), "Requires a set of health check registrations in the set of options");
+            Guard.For(() => options.Value.Registrations.Any(reg => reg is null), 
+                new ArgumentException("Requires a health check registration instance for each element in the health check options", nameof(options)));
+            Guard.For(() => options.Value.Registrations.Any(reg => reg.Factory is null),
+                new ArgumentException("Requires a factory function to create health check instances for each health check registration in the health check options", nameof(options)));
+            
+            string[] duplicateNames = 
+                options.Value.Registrations
+                        .GroupBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+                        .Where(g => g.Count() > 1)
+                        .Select(g => g.Key)
+                        .ToArray();
 
-            // We're specifically going out of our way to do this at startup time. We want to make sure you
-            // get any kind of health-check related error as early as possible. Waiting until someone
-            // actually tries to **run** health checks would be real baaaaad.
-            ValidateRegistrations(_options.Value.Registrations);
+            Guard.For(() => duplicateNames.Length > 0, new ArgumentException(
+                $"Requires unique names for the health check registrations in the options, but got duplicate name(s): {string.Join(", ", duplicateNames)}", nameof(options)));
+            
+            ScopeFactory = scopeFactory;
+            Options = options;
+            Logger = (ILogger) logger ?? NullLogger.Instance;
         }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DefaultHealthCheckService" /> class.
+        /// </summary>
+        /// <param name="scopeFactory">The factory to resolve -and or create- <see cref="IHealthCheck"/> instances for each <see cref="HealthCheckRegistration"/>.</param>
+        /// <param name="options">The internally-added options to specify the <see cref="HealthCheckRegistration"/>s.</param>
+        /// <exception cref="ArgumentNullException">
+        ///     Thrown when the <paramref name="scopeFactory"/>, the <paramref name="options"/> is <c>null</c>
+        ///     or the <paramref name="options"/> doesn't contain a value for <see cref="HealthCheckServiceOptions.Registrations"/>.
+        /// </exception>
+        /// <exception cref="ArgumentException">
+        ///     Thrown when the <paramref name="options"/> contains <c>null</c> elements for the <see cref="HealthCheckServiceOptions.Registrations"/>
+        ///     or <c>null</c> values for the <see cref="HealthCheckRegistration.Factory"/> property
+        ///     or duplicate <see cref="HealthCheckRegistration.Name"/>s for the <see cref="HealthCheckServiceOptions.Registrations"/>
+        /// </exception>
+        public DefaultHealthCheckService(
+            IServiceScopeFactory scopeFactory,
+            IOptions<HealthCheckServiceOptions> options)
+            : this(scopeFactory, options, NullLogger<DefaultHealthCheckService>.Instance)
+        {
+            Guard.NotNull(scopeFactory, nameof(scopeFactory), "Requires an scope factory instance to resolve -and or create- health check instances for each health check registration");
+            Guard.NotNull(options, nameof(options), "Requires a set of options to define all the health check registrations to be checked");
+            Guard.NotNull(options.Value, nameof(options), "Requires a value for the set of options to define all the health check registrations to be checked");
+            Guard.NotNull(options.Value.Registrations, nameof(options), "Requires a set of health check registrations in the set of options");
+            Guard.For(() => options.Value.Registrations.Any(reg => reg is null), 
+                new ArgumentException("Requires a health check registration instance for each element in the health check options", nameof(options)));
+            Guard.For(() => options.Value.Registrations.Any(reg => reg.Factory is null),
+                new ArgumentException("Requires a factory function to create health check instances for each health check registration in the health check options", nameof(options)));
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DefaultHealthCheckService" /> class.
+        /// </summary>
+        /// <param name="scopeFactory">The factory to resolve -and or create- <see cref="IHealthCheck"/> instances for each <see cref="HealthCheckRegistration"/>.</param>
+        /// <param name="logger">The logger instance to write diagnostic trace messages during the health checks process.</param>
+        /// <exception cref="ArgumentNullException">Thrown when the <paramref name="scopeFactory"/> is <c>null</c>.</exception>
+        public DefaultHealthCheckService(
+            IServiceScopeFactory scopeFactory,
+            ILogger<DefaultHealthCheckService> logger)
+            : this(scopeFactory, Microsoft.Extensions.Options.Options.Create(new HealthCheckServiceOptions()), logger)
+        {
+            Guard.NotNull(scopeFactory, nameof(scopeFactory), "Requires an scope factory instance to resolve -and or create- health check instances for each health check registration");
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="DefaultHealthCheckService" /> class.
+        /// </summary>
+        /// <param name="scopeFactory">The factory to resolve -and or create- <see cref="IHealthCheck"/> instances for each <see cref="HealthCheckRegistration"/>.</param>
+        /// <exception cref="ArgumentNullException">Thrown when the <paramref name="scopeFactory"/> is <c>null</c>.</exception>
+        public DefaultHealthCheckService(IServiceScopeFactory scopeFactory)
+            : this(scopeFactory, Microsoft.Extensions.Options.Options.Create(new HealthCheckServiceOptions()), NullLogger<DefaultHealthCheckService>.Instance)
+        {
+            Guard.NotNull(scopeFactory, nameof(scopeFactory), "Requires an scope factory instance to resolve -and or create- health check instances for each health check registration");
+        }
+
+        /// <summary>
+        /// Gets the factory to resolve -and or create- <see cref="IHealthCheck"/> instances for each <see cref="HealthCheckRegistration"/>.
+        /// </summary>
+        protected IServiceScopeFactory ScopeFactory { get; }
+        
+        /// <summary>
+        /// Gets the internally-added options to specify the <see cref="HealthCheckRegistration"/>s.
+        /// </summary>
+        protected IOptions<HealthCheckServiceOptions> Options { get; }
+        
+        /// <summary>
+        /// Gets the logger instance to write diagnostic trace messages during the health checks process.
+        /// </summary>
+        protected ILogger Logger { get; }
+
+        /// <summary>
+        /// Runs the provided health checks and returns the aggregated status
+        /// </summary>
+        /// <param name="predicate">
+        ///     A predicate that can be used to include health checks based on user-defined criteria.
+        /// </param>
+        /// <param name="cancellationToken">A <see cref="T:System.Threading.CancellationToken" /> which can be used to cancel the health checks.</param>
+        /// <returns>
+        ///     A <see cref="T:System.Threading.Tasks.Task`1" /> which will complete when all the health checks have been run,
+        ///     yielding a <see cref="T:Microsoft.Extensions.Diagnostics.HealthChecks.HealthReport" /> containing the results.
+        /// </returns>
         public override async Task<HealthReport> CheckHealthAsync(
             Func<HealthCheckRegistration, bool> predicate,
             CancellationToken cancellationToken = default)
         {
-            var registrations = _options.Value.Registrations;
-
-            using (var scope = _scopeFactory.CreateScope())
+            ICollection<HealthCheckRegistration> registrations = Options.Value.Registrations;
+            using (IServiceScope scope = ScopeFactory.CreateScope())
             {
                 var context = new HealthCheckContext();
                 var entries = new Dictionary<string, HealthReportEntry>(StringComparer.OrdinalIgnoreCase);
 
                 var totalTime = ValueStopwatch.StartNew();
-                Log.HealthCheckProcessingBegin(_logger);
+                Logger.LogHealthCheckProcessingBegin();
 
-                foreach (var registration in registrations)
+                foreach (HealthCheckRegistration registration in registrations)
                 {
                     if (predicate != null && !predicate(registration))
                     {
@@ -56,347 +164,80 @@ namespace FunctionHealthCheck
                     }
 
                     cancellationToken.ThrowIfCancellationRequested();
-
-                    var healthCheck = registration.Factory(scope.ServiceProvider);
-
-                    var stopwatch = ValueStopwatch.StartNew();
                     context.Registration = registration;
-
-                    Log.HealthCheckBegin(_logger, registration);
-
-                    HealthReportEntry entry;
-                    try
-                    {
-                        var result = await healthCheck.CheckHealthAsync(context, cancellationToken);
-                        var duration = stopwatch.Elapsed;
-
-                        entry = new HealthReportEntry(
-                            status: result.Status,
-                            description: result.Description,
-                            duration: duration,
-                            exception: result.Exception,
-                            data: result.Data);
-
-                        Log.HealthCheckEnd(_logger, registration, entry, duration);
-                        Log.HealthCheckData(_logger, registration, entry);
-                    }
-
-                    // Allow cancellation to propagate.
-                    catch (Exception ex) when (ex as OperationCanceledException == null)
-                    {
-                        var duration = stopwatch.Elapsed;
-                        entry = new HealthReportEntry(
-                            status: HealthStatus.Unhealthy,
-                            description: ex.Message,
-                            duration: duration,
-                            exception: ex,
-                            data: null);
-
-                        Log.HealthCheckError(_logger, registration, ex, duration);
-                    }
-
+                    
+                    HealthReportEntry entry = await CheckHealthReportEntryAsync(registration, scope, context, cancellationToken);
                     entries[registration.Name] = entry;
                 }
 
-                var totalElapsedTime = totalTime.Elapsed;
+                TimeSpan totalElapsedTime = totalTime.Elapsed;
                 var report = new HealthReport(entries, totalElapsedTime);
-                Log.HealthCheckProcessingEnd(_logger, report.Status, totalElapsedTime);
+                Logger.LogHealthCheckProcessingEnd(report.Status, totalElapsedTime);
+                
                 return report;
             }
         }
 
-        private static void ValidateRegistrations(IEnumerable<HealthCheckRegistration> registrations)
-        {
-            // Scan the list for duplicate names to provide a better error if there are duplicates.
-            var duplicateNames = registrations
-                .GroupBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
-                .Where(g => g.Count() > 1)
-                .Select(g => g.Key)
-                .ToList();
-
-            if (duplicateNames.Count > 0)
-            {
-                throw new ArgumentException($"Duplicate health checks were registered with the name(s): {string.Join(", ", duplicateNames)}", nameof(registrations));
-            }
-        }
-
-        internal static class EventIds
-        {
-            public static readonly EventId HealthCheckProcessingBegin = new EventId(100, "HealthCheckProcessingBegin");
-            public static readonly EventId HealthCheckProcessingEnd = new EventId(101, "HealthCheckProcessingEnd");
-
-            public static readonly EventId HealthCheckBegin = new EventId(102, "HealthCheckBegin");
-            public static readonly EventId HealthCheckEnd = new EventId(103, "HealthCheckEnd");
-            public static readonly EventId HealthCheckError = new EventId(104, "HealthCheckError");
-            public static readonly EventId HealthCheckData = new EventId(105, "HealthCheckData");
-        }
-
-        private static class Log
-        {
-            private static readonly Action<ILogger, Exception> _healthCheckProcessingBegin = LoggerMessage.Define(
-                LogLevel.Debug,
-                EventIds.HealthCheckProcessingBegin,
-                "Running health checks");
-
-            private static readonly Action<ILogger, double, HealthStatus, Exception> _healthCheckProcessingEnd = LoggerMessage.Define<double, HealthStatus>(
-                LogLevel.Debug,
-                EventIds.HealthCheckProcessingEnd,
-                "Health check processing completed after {ElapsedMilliseconds}ms with combined status {HealthStatus}");
-
-            private static readonly Action<ILogger, string, Exception> _healthCheckBegin = LoggerMessage.Define<string>(
-                LogLevel.Debug,
-                EventIds.HealthCheckBegin,
-                "Running health check {HealthCheckName}");
-
-            // These are separate so they can have different log levels
-            private static readonly string HealthCheckEndText = "Health check {HealthCheckName} completed after {ElapsedMilliseconds}ms with status {HealthStatus} and '{HealthCheckDescription}'";
-
-            private static readonly Action<ILogger, string, double, HealthStatus, string, Exception> _healthCheckEndHealthy = LoggerMessage.Define<string, double, HealthStatus, string>(
-                LogLevel.Debug,
-                EventIds.HealthCheckEnd,
-                HealthCheckEndText);
-
-            private static readonly Action<ILogger, string, double, HealthStatus, string, Exception> _healthCheckEndDegraded = LoggerMessage.Define<string, double, HealthStatus, string>(
-                LogLevel.Warning,
-                EventIds.HealthCheckEnd,
-                HealthCheckEndText);
-
-            private static readonly Action<ILogger, string, double, HealthStatus, string, Exception> _healthCheckEndUnhealthy = LoggerMessage.Define<string, double, HealthStatus, string>(
-                LogLevel.Error,
-                EventIds.HealthCheckEnd,
-                HealthCheckEndText);
-
-            private static readonly Action<ILogger, string, double, HealthStatus, string, Exception> _healthCheckEndFailed = LoggerMessage.Define<string, double, HealthStatus, string>(
-                LogLevel.Error,
-                EventIds.HealthCheckEnd,
-                HealthCheckEndText);
-
-            private static readonly Action<ILogger, string, double, Exception> _healthCheckError = LoggerMessage.Define<string, double>(
-                LogLevel.Error,
-                EventIds.HealthCheckError,
-                "Health check {HealthCheckName} threw an unhandled exception after {ElapsedMilliseconds}ms");
-
-            public static void HealthCheckProcessingBegin(ILogger logger)
-            {
-                _healthCheckProcessingBegin(logger, null);
-            }
-
-            public static void HealthCheckProcessingEnd(ILogger logger, HealthStatus status, TimeSpan duration)
-            {
-                _healthCheckProcessingEnd(logger, duration.TotalMilliseconds, status, null);
-            }
-
-            public static void HealthCheckBegin(ILogger logger, HealthCheckRegistration registration)
-            {
-                _healthCheckBegin(logger, registration.Name, null);
-            }
-
-            public static void HealthCheckEnd(ILogger logger, HealthCheckRegistration registration, HealthReportEntry entry, TimeSpan duration)
-            {
-                switch (entry.Status)
-                {
-                    case HealthStatus.Healthy:
-                        _healthCheckEndHealthy(logger, registration.Name, duration.TotalMilliseconds, entry.Status, entry.Description, null);
-                        break;
-
-                    case HealthStatus.Degraded:
-                        _healthCheckEndDegraded(logger, registration.Name, duration.TotalMilliseconds, entry.Status, entry.Description, null);
-                        break;
-
-                    case HealthStatus.Unhealthy:
-                        _healthCheckEndUnhealthy(logger, registration.Name, duration.TotalMilliseconds, entry.Status, entry.Description, null);
-                        break;
-                }
-            }
-
-            public static void HealthCheckError(ILogger logger, HealthCheckRegistration registration, Exception exception, TimeSpan duration)
-            {
-                _healthCheckError(logger, registration.Name, duration.TotalMilliseconds, exception);
-            }
-
-            public static void HealthCheckData(ILogger logger, HealthCheckRegistration registration, HealthReportEntry entry)
-            {
-                if (entry.Data.Count > 0 && logger.IsEnabled(LogLevel.Debug))
-                {
-                    logger.Log(
-                        LogLevel.Debug,
-                        EventIds.HealthCheckData,
-                        new HealthCheckDataLogValue(registration.Name, entry.Data),
-                        null,
-                        (state, ex) => state.ToString());
-                }
-            }
-        }
-
-        internal class HealthCheckDataLogValue : IReadOnlyList<KeyValuePair<string, object>>
-        {
-            private readonly string _name;
-            private readonly List<KeyValuePair<string, object>> _values;
-
-            private string _formatted;
-
-            public HealthCheckDataLogValue(string name, IReadOnlyDictionary<string, object> values)
-            {
-                _name = name;
-                _values = values.ToList();
-
-                // We add the name as a kvp so that you can filter by health check name in the logs.
-                // This is the same parameter name used in the other logs.
-                _values.Add(new KeyValuePair<string, object>("HealthCheckName", name));
-            }
-
-            public KeyValuePair<string, object> this[int index]
-            {
-                get
-                {
-                    if (index < 0 || index >= Count)
-                    {
-                        throw new IndexOutOfRangeException(nameof(index));
-                    }
-
-                    return _values[index];
-                }
-            }
-
-            public int Count => _values.Count;
-
-            public IEnumerator<KeyValuePair<string, object>> GetEnumerator()
-            {
-                return _values.GetEnumerator();
-            }
-
-            IEnumerator IEnumerable.GetEnumerator()
-            {
-                return _values.GetEnumerator();
-            }
-
-            public override string ToString()
-            {
-                if (_formatted == null)
-                {
-                    var builder = new StringBuilder();
-                    builder.AppendLine($"Health check data for {_name}:");
-
-                    var values = _values;
-                    for (var i = 0; i < values.Count; i++)
-                    {
-                        var kvp = values[i];
-                        builder.Append("    ");
-                        builder.Append(kvp.Key);
-                        builder.Append(": ");
-
-                        builder.AppendLine(kvp.Value?.ToString());
-                    }
-
-                    _formatted = builder.ToString();
-                }
-
-                return _formatted;
-            }
-        }
-    }
-
-    internal struct ValueStopwatch
-    {
-        private static readonly double TimestampToTicks = TimeSpan.TicksPerSecond / (double)Stopwatch.Frequency;
-        private long value;
-
         /// <summary>
-        /// Starts a new instance.
+        /// Runs the provided health check <paramref name="healthRegistration"/>.
         /// </summary>
-        /// <returns>A new, running stopwatch.</returns>
-        public static ValueStopwatch StartNew() => new ValueStopwatch(Stopwatch.GetTimestamp());
-
-        private ValueStopwatch(long timestamp)
+        /// <param name="healthRegistration">The health check registration that holds the <see cref="IHealthCheck"/> that needs to be run.</param>
+        /// <param name="serviceScope">
+        ///     The service scope to create -and or resolve- the next <see cref="IHealthCheck"/> from the <see cref="HealthCheckRegistration.Factory"/>.
+        /// </param>
+        /// <param name="healthContext">The context that gets accumulated during each <see cref="IHealthCheck"/> run.</param>
+        /// <param name="cancellationToken">The cancellation token that can be used to cancel the health check.</param>
+        /// <returns>
+        ///     The <see cref="HealthReportEntry"/> that describes the end-result status
+        ///     of the <see cref="IHealthCheck"/> that was found in the given <paramref name="healthRegistration"/>.
+        /// </returns>
+        /// <exception cref="ArgumentNullException">
+        ///     Thrown when the <paramref name="healthRegistration"/>, the <paramref name="serviceScope"/>, or the <paramref name="healthContext"/> is <c>null</c>.
+        /// </exception>
+        protected virtual async Task<HealthReportEntry> CheckHealthReportEntryAsync(
+            HealthCheckRegistration healthRegistration,
+            IServiceScope serviceScope,
+            HealthCheckContext healthContext,
+            CancellationToken cancellationToken)
         {
-            this.value = timestamp;
-        }
-
-        /// <summary>
-        /// Returns true if this instance is running or false otherwise.
-        /// </summary>
-        public bool IsRunning => this.value > 0;
-
-        /// <summary>
-        /// Returns the elapsed time.
-        /// </summary>
-        public TimeSpan Elapsed => TimeSpan.FromTicks(this.ElapsedTicks);
-
-        /// <summary>
-        /// Returns the elapsed ticks.
-        /// </summary>
-        public long ElapsedTicks
-        {
-            get
+            Guard.NotNull(healthRegistration, nameof(healthRegistration), "Requires a health check registration to run the health check");
+            Guard.NotNull(serviceScope, nameof(serviceScope), "Requires a service scope to resolve -and or create- an health check instance");
+            Guard.NotNull(healthContext, nameof(healthContext), "Requires a health check context to accumulate during each health check run");
+            
+            IHealthCheck healthCheck = healthRegistration.Factory(serviceScope.ServiceProvider);
+            var stopwatch = ValueStopwatch.StartNew();
+            
+            Logger.LogHealthCheckBegin(healthRegistration);
+            
+            if (healthCheck is null)
             {
-                // A positive timestamp value indicates the start time of a running stopwatch,
-                // a negative value indicates the negative total duration of a stopped stopwatch.
-                var timestamp = this.value;
-
-                long delta;
-                if (this.IsRunning)
-                {
-                    // The stopwatch is still running.
-                    var start = timestamp;
-                    var end = Stopwatch.GetTimestamp();
-                    delta = end - start;
-                }
-                else
-                {
-                    // The stopwatch has been stopped.
-                    delta = -timestamp;
-                }
-
-                return (long)(delta * TimestampToTicks);
+                TimeSpan duration = stopwatch.Elapsed;
+                var entry = new HealthReportEntry(
+                    HealthStatus.Unhealthy, "No health check instance was returned by the health registration factory, got 'null'", duration, exception: null, data: null);
+                
+                Logger.LogHealthCheckEndFailed(healthRegistration, entry, duration);
+                return entry;
             }
-        }
 
-        /// <summary>
-        /// Gets the raw counter value for this instance.
-        /// </summary>
-        /// <remarks> 
-        /// A positive timestamp value indicates the start time of a running stopwatch,
-        /// a negative value indicates the negative total duration of a stopped stopwatch.
-        /// </remarks>
-        /// <returns>The raw counter value.</returns>
-        public long GetRawTimestamp() => this.value;
+            try
+            {
+                HealthCheckResult result = await healthCheck.CheckHealthAsync(healthContext, cancellationToken);
+                TimeSpan duration = stopwatch.Elapsed;
 
-        /// <summary>
-        /// Starts the stopwatch.
-        /// </summary>
-        public void Start()
-        {
-            var timestamp = this.value;
+                var entry = new HealthReportEntry(result.Status, result.Description, duration, result.Exception, result.Data);
+                Logger.LogHealthCheckEnd(healthRegistration, entry, duration);
+                Logger.LogHealthCheckData(healthRegistration, entry);
 
-            // If already started, do nothing.
-            if (this.IsRunning) return;
+                return entry;
+            }
+            catch (Exception exception) when (!(exception is OperationCanceledException))
+            {
+                TimeSpan duration = stopwatch.Elapsed;
+                var entry = new HealthReportEntry(HealthStatus.Unhealthy, exception.Message, duration, exception, data: null);
 
-            // Stopwatch is stopped, therefore value is zero or negative.
-            // Add the negative value to the current timestamp to start the stopwatch again.
-            var newValue = Stopwatch.GetTimestamp() + timestamp;
-            if (newValue == 0) newValue = 1;
-            this.value = newValue;
-        }
-
-        /// <summary>
-        /// Restarts this stopwatch, beginning from zero time elapsed.
-        /// </summary>
-        public void Restart() => this.value = Stopwatch.GetTimestamp();
-
-        /// <summary>
-        /// Stops this stopwatch.
-        /// </summary>
-        public void Stop()
-        {
-            var timestamp = this.value;
-
-            // If already stopped, do nothing.
-            if (!this.IsRunning) return;
-
-            var end = Stopwatch.GetTimestamp();
-            var delta = end - timestamp;
-
-            this.value = -delta;
+                Logger.LogHealthCheckError(healthRegistration, exception, duration);
+                return entry;
+            }
         }
     }
 }
