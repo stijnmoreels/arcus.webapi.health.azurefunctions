@@ -1,0 +1,13 @@
+{
+  "profiles": {
+    "Arcus.WebApi.Health.AzureFunctions.Tests.Runtime": {
+      "commandName": "Project"
+    },
+    "Docker": {
+      "commandName": "Docker",
+      "launchUrl": "{Scheme}://{ServiceHost}:{ServicePort}",
+      "httpPort": 31136,
+      "useSSL": false
+    }
+  }
+}
