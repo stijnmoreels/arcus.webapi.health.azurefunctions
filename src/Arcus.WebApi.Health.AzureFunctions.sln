@@ -7,7 +7,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Arcus.WebApi.Health.AzureFu
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Tests", "Tests", "{95FCAF3F-6357-44D7-8E17-DC8165FAAD91}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Arcus.WebApi.Health.AzureFunctions.Tests.Unit", "Arcus.WebApi.Health.AzureFunctions.Tests.Unit\Arcus.WebApi.Health.AzureFunctions.Tests.Unit.csproj", "{2A48080C-B1BD-45BE-9EA3-C53237958764}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Arcus.WebApi.Health.AzureFunctions.Tests.Unit", "Arcus.WebApi.Health.AzureFunctions.Tests.Unit\Arcus.WebApi.Health.AzureFunctions.Tests.Unit.csproj", "{2A48080C-B1BD-45BE-9EA3-C53237958764}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Arcus.WebApi.Health.AzureFunctions.Tests.Runtime", "Arcus.WebApi.Health.AzureFunctions.Tests.Runtime\Arcus.WebApi.Health.AzureFunctions.Tests.Runtime.csproj", "{E296A55C-3E81-4BD9-AD65-8EA7DCEDE908}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Arcus.WebApi.Health.AzureFunctions.Tests.Integration", "Arcus.WebApi.Health.AzureFunctions.Tests.Integration\Arcus.WebApi.Health.AzureFunctions.Tests.Integration.csproj", "{1325483B-7EBD-4172-A337-327A21779E20}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -23,12 +27,22 @@ Global
 		{2A48080C-B1BD-45BE-9EA3-C53237958764}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2A48080C-B1BD-45BE-9EA3-C53237958764}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2A48080C-B1BD-45BE-9EA3-C53237958764}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E296A55C-3E81-4BD9-AD65-8EA7DCEDE908}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E296A55C-3E81-4BD9-AD65-8EA7DCEDE908}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E296A55C-3E81-4BD9-AD65-8EA7DCEDE908}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E296A55C-3E81-4BD9-AD65-8EA7DCEDE908}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1325483B-7EBD-4172-A337-327A21779E20}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1325483B-7EBD-4172-A337-327A21779E20}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1325483B-7EBD-4172-A337-327A21779E20}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1325483B-7EBD-4172-A337-327A21779E20}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{2A48080C-B1BD-45BE-9EA3-C53237958764} = {95FCAF3F-6357-44D7-8E17-DC8165FAAD91}
+		{E296A55C-3E81-4BD9-AD65-8EA7DCEDE908} = {95FCAF3F-6357-44D7-8E17-DC8165FAAD91}
+		{1325483B-7EBD-4172-A337-327A21779E20} = {95FCAF3F-6357-44D7-8E17-DC8165FAAD91}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {9042270F-CD78-4717-BEF0-BEA3F1C5939D}

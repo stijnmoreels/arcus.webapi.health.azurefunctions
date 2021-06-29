@@ -18,6 +18,7 @@ variables:
   - group: 'Arcus - GitHub Package Registry'
   - group: 'Build Configuration'
   - template: ./variables/build.yml
+  - template: ./variables/test.yml
   - name: 'Package.Version'
     value: ${{ parameters['Package.Version'] }}
 
@@ -63,9 +64,30 @@ stages:
               dotnetSdkVersion: '$(DotNet.Sdk.Version)'
               projectName: '$(Project).Tests.Unit'
 
+  - stage: IntegrationTests
+    displayName: Integration Tests
+    dependsOn: Build
+    condition: succeeded()
+    jobs:
+      - job: IntegrationTests
+        displayName: 'Run integration tests'
+        pool:
+          vmImage: '$(Vm.Image)'
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download build artifacts'
+            inputs:
+              artifact: 'Build'
+              path: '$(Build.SourcesDirectory)'
+          - template: templates/run-integration-tests.yml
+            parameters:
+              dockerProjectName: '$(Project).Tests.Runtime'
+
   - stage: Release
     displayName: 'Release to NuGet.org'
-    dependsOn: [UnitTests]
+    dependsOn: 
+      - UnitTests
+      - IntegrationTests
     condition: succeeded()
     jobs:
       - job: PushToNuGet
