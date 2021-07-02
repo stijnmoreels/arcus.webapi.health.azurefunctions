@@ -1,5 +1,6 @@
 ﻿using Arcus.WebApi.Health.AzureFunctions.Tests.Runtime;
 using Microsoft.Azure.Functions.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 
 [assembly: FunctionsStartup(typeof(Startup))]
 
@@ -13,7 +14,7 @@ namespace Arcus.WebApi.Health.AzureFunctions.Tests.Runtime
         /// <param name="builder">The instance to build the registered services inside the functions app.</param>
         public override void Configure(IFunctionsHostBuilder builder)
         {
-            builder.AddHealthChecks();
+            builder.Services.AddHealthChecks();
         }
     }
 }
